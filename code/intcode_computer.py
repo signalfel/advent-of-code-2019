@@ -66,7 +66,7 @@ class machine:
     def _write_memory(self, address, value, how = 'positional'):
 
         if how == 'immediate':
-            raise ValueError('Cannot write in immediateediate mode!')
+            raise ValueError('Cannot write in immediate mode!')
         elif how == 'positional':
             add = address
         elif how == 'relative':
@@ -101,7 +101,7 @@ class machine:
         # zero if it is missing
         code_str_lengths = {1: 5,
                             2: 5, 
-                            3: 1,
+                            3: 3,
                             4: 3,
                             5: 4,
                             6: 4,
@@ -146,9 +146,9 @@ class machine:
         val1 = self._read_memory(self.head + 1, how=parameter_modes[0])
         val2 = self._read_memory(self.head + 2, how=parameter_modes[1])
         
-        address = self._read_memory(self.head + 3)
-        
-        self._write_memory(address, val1 + val2)
+        write_address = self._read_memory(self.head + 3)
+        self._write_memory(write_address, val1 + val2, how=parameter_modes[2])
+
         self.head += 4
         
     def _code_two(self, parameter_modes):
@@ -156,9 +156,8 @@ class machine:
         val1 = self._read_memory(self.head + 1, how=parameter_modes[0])
         val2 = self._read_memory(self.head + 2, how=parameter_modes[1])
         
-        address = self._read_memory(self.head + 3)
-        
-        self._write_memory(address, val1 * val2)
+        write_address = self._read_memory(self.head + 3)
+        self._write_memory(write_address, val1 * val2, how = parameter_modes[2])
         self.head += 4
         
     def _code_three(self, parameter_modes):    
@@ -177,9 +176,8 @@ class machine:
                     break
             else:
                 val = self.__inputs.pop(0)
-            # set_trace()
-            address = self._read_memory(self.head + 1, how = parameter_modes[0])
-            self._write_memory(address, val)
+            write_address = self._read_memory(self.head + 1)
+            self._write_memory(write_address, val, how = parameter_modes[0])
             self.head += 2
         
     def _code_four(self, parameter_modes):
@@ -217,9 +215,8 @@ class machine:
         val1 = self._read_memory(self.head + 1, how=parameter_modes[0])
         val2 = self._read_memory(self.head + 2, how=parameter_modes[1])
 
-        address = self._read_memory(self.head + 3)
-
-        self._write_memory(address, 1 if val1 < val2 else 0)
+        write_address = self._read_memory(self.head + 3)
+        self._write_memory(write_address, 1 if val1 < val2 else 0, how = parameter_modes[2])
         self.head += 4
     
     def _code_eight(self, parameter_modes):
@@ -227,8 +224,8 @@ class machine:
         val1 = self._read_memory(self.head + 1, how=parameter_modes[0])
         val2 = self._read_memory(self.head + 2, how=parameter_modes[1])
 
-        address = self._read_memory(self.head + 3)
-        self._write_memory(address, 1 if val1 == val2 else 0)
+        write_address = self._read_memory(self.head + 3)
+        self._write_memory(write_address, 1 if val1 == val2 else 0, how=parameter_modes[2])
         self.head += 4
     
     def _code_nine(self, parameter_modes):
