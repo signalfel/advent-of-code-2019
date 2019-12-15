@@ -14,6 +14,7 @@ class machine:
         self.head = 0
         self.__return_output = return_output
         self.__verbose = verbose
+        self.__relative_base = 0
         
         if program is not None:
             self.state = state_from_program(program)
@@ -73,8 +74,10 @@ class machine:
         while (len(code_seq) < code_str_lengths[code]):
             code_seq = [0] + code_seq
         
-        # part of the code signifies if the parameter type is position or immediate
-        parameter_map = {0: 'pos', 1: 'imm'}
+        # part of the code signifies if the parameter type is position, immediate
+        # or relative
+        parameter_map = {0: 'pos', 1: 'imm', 2: 'rel'}
+        
         
         # we figure out which parameters should be interpreted as what
         par_types = [parameter_map[o] for o in reversed(code_seq[:-2])]
@@ -88,6 +91,7 @@ class machine:
                  6: self._code_six, 
                  7: self._code_seven,
                  8: self._code_eight,
+                 9: self._code_nine,
                 }
         
         # Some of the opcodes will require additional arguments, we can put them here.
@@ -100,6 +104,7 @@ class machine:
                          6: {'par_types': par_types},
                          7: {'par_types': par_types},
                          8: {'par_types': par_types},
+                         9: {'par_types': par_types},
                         }
         
         # We determine which function to apply, from the code received
@@ -110,43 +115,45 @@ class machine:
         # Apply the function. The functions themselves are responsible for altering the state
         # of the machine and moving the instruction pointer (head) appropriately
         code_func(**args)
-    
-    def _interpret_parameters(self, par_types, give_address=False):
+
+    def _interpret_parameter(self, parameter_type, address):
         # Opcodes have parameters sometimes, and this function gives values for those
-        # depending on if they are positional or immediate (this information is stored
+        # depending on if they are positional, immediate or relative (this information is stored
         # in the input par_types)
-        state = self.state
-        head = self.head
-        
+
         # If we have immediate parameter type, we select the value in the state at the 
-        # parameter position. Otherwise, we have positional parameter type and we select
+        # parameter position. Otherwise, if we have positional parameter type and we select
         # the value in the state at the address given by the parameter 
-        val1 = (state[head+1] if par_types[0] is 'imm' else state[state[head+1]])
-        val2 = (state[head+2] if par_types[1] is 'imm' else state[state[head+2]])
-        
-        # If we have a third parameter, it has so far been an address to put the result
-        # If we want this, we return it
-        if give_address:
-            address = state[head+3]
-            return val1, val2, address
+        # Otherwise, we have a relative paramater type and we
+        if parameter_type is 'imm':
+            val = self.state[address]
+        elif parameter_type is 'pos':
+            val = self.state[self.state[address]]
+        elif parameter_type is 'rel':
+            val = self.state[self.state[address] + self.__relative_base]
         else:
-            return val1, val2
+            raise ValueError('Unknown parameter type: {}'.format(parameter_type))
+
+        return val
     
     
     def _code_one(self, par_types):
         # Add parameter 1 and 2 and store it at parameter 3
-        # set_trace()
-        val1, val2, address = self._interpret_parameters(par_types, give_address=True)
-        try:
-            self.state[address] = val1 + val2
-        except TypeError as e:
-            set_trace()
-            print(e)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+        
+        address = self.state[self.head+3]
+        
+        self.state[address] = val1 + val2
         self.head += 4
         
     def _code_two(self, par_types):
         # Multiply parameter 1 and 2 and store it at parameter 3
-        val1, val2, address = self._interpret_parameters(par_types, give_address=True)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+        
+        address = self.state[self.head+3]
+        
         self.state[address] = val1 * val2
         self.head += 4
         
@@ -184,7 +191,9 @@ class machine:
     
     def _code_five(self, par_types):     
         # If parameter 1 is non-zero, set head at parameter 2
-        val1, val2 = self._interpret_parameters(par_types, give_address=False)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+
         if val1 != 0:
             self.head = val2
         else:
@@ -192,7 +201,9 @@ class machine:
             
     def _code_six(self, par_types):     
         # If parameter 1 is zero, set head at parameter 2
-        val1, val2 = self._interpret_parameters(par_types, give_address=False)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+        
         if val1 == 0:
             self.head = val2
         else:
@@ -200,16 +211,26 @@ class machine:
     
     def _code_seven(self, par_types):
         # If parameter 1 is less than parameter 2, set 1 at parameter 3 else 0 
-        val1, val2, address = self._interpret_parameters(par_types, give_address=True)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+
+        address = self.state[self.head+3]
         self.state[address] = 1 if val1 < val2 else 0
         self.head += 4
     
     def _code_eight(self, par_types):
         # If parameter 1 equals parameter 2, set 1 at parameter 3 else 0 
-        val1, val2, address = self._interpret_parameters(par_types, give_address=True)
+        val1 = self._interpret_parameter(par_types[0], address=self.head + 1)
+        val2 = self._interpret_parameter(par_types[1], address=self.head + 2)
+
+        address = self.state[self.head+3]
         self.state[address] = 1 if val1 == val2 else 0
         self.head += 4
     
+    def _code_nine(self, par_types):
+        val = self._interpret_parameter(par_types[0], address=self.head + 1)
+        self.__relative_base += val
+        self.head += 2
+
     def __repr__(self):
         return '{}'.format(self.state)
-        
