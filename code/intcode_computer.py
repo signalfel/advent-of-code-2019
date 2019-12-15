@@ -1,4 +1,6 @@
 
+from IPython.core.debugger import set_trace
+
 
 def state_from_program(program):
     return [int(e) for e in program.split(',')]
@@ -7,22 +9,45 @@ def get_intlist(integer):
     return [int(i) for i in list(str(integer))]
 
 class machine:
-    def __init__(self, program=None):
+    def __init__(self, program=None, inputs = None, return_output = False, verbose = True):
         self.state = []
         self.head = 0
+        self.__return_output = return_output
+        self.__verbose = verbose
         
         if program is not None:
             self.state = state_from_program(program)
 
-        
-            
+        if inputs is not None:
+            self.__inputs = inputs
+        else:
+            self.__inputs = None
+
+        if return_output:
+            self.outputs = []
+
+        self.__paused = False
+        self.is_terminated = False
+
+
+      
     def run(self):
-        while True:
+        if self.is_terminated:
+            print('Program has halted and cannot resume.')
+        while not (self.__paused or self.is_terminated):
             self._opcode()
             
             if self.state[self.head] == 99:
-                print('Termination criterion received. Halting.')
-                break
+                if self.__verbose:
+                    print('Termination criterion received. Halting.')
+                self.is_terminated = True
+    
+        if self.__return_output:
+            return self.outputs
+
+    def input(self, inp):
+        self.__inputs.append(inp)
+        self.__paused = False
                 
     def _opcode(self):
         # make a list of integers that defines the opcode, namely where
@@ -110,8 +135,13 @@ class machine:
     
     def _code_one(self, par_types):
         # Add parameter 1 and 2 and store it at parameter 3
+        # set_trace()
         val1, val2, address = self._interpret_parameters(par_types, give_address=True)
-        self.state[address] = val1 + val2
+        try:
+            self.state[address] = val1 + val2
+        except TypeError as e:
+            set_trace()
+            print(e)
         self.head += 4
         
     def _code_two(self, par_types):
@@ -123,22 +153,33 @@ class machine:
     def _code_three(self):    
         # Take an input number and store it at the address given by
         # parameter 1
-        while True:
-            try:
-                val = int(input("Enter an integer: "))
-            except ValueError:
-                print('Give a number!')
-                continue
-            break
-        address = self.state[self.head+1]
-        self.state[address] = val
-        self.head += 2
+        if self.__inputs == []:
+            self.__paused = True
+        else:
+            if self.__inputs is None:
+                while True:
+                    try:
+                        val = int(input("Enter an integer: "))
+                    except ValueError:
+                        print('Give a number!')
+                        continue
+                    break
+            else:
+                val = self.__inputs.pop(0)
+
+            address = self.state[self.head+1]
+            self.state[address] = val
+            self.head += 2
         
     def _code_four(self):
         # Only output the value stored positionally at the code's 
         # parameter
         address = self.state[self.head+1]
-        print('Output: {}'.format(self.state[address]))
+        output = self.state[address]
+        if self.__return_output:
+            self.outputs.append(output)      
+        if self.__verbose:
+            print('Output: {}'.format(output))
         self.head += 2
     
     def _code_five(self, par_types):     
