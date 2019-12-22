@@ -8,12 +8,13 @@ def get_intlist(integer):
 
 class machine:
     def __init__(self, program=None, inputs=None, 
-                 return_output=False, verbose=True):
+                 return_output=False, verbose=True, reset_outputs = False):
         self.state = []
         self.head = 0
         self.__return_output = return_output
         self.__verbose = verbose
         self.__relative_base = 0
+        self.__reset_outputs = reset_outputs
         
         if program is not None:
             self.state = state_from_program(program)
@@ -40,7 +41,13 @@ class machine:
                 self.is_terminated = True
     
         if self.__return_output:
-            return self.outputs
+            if self.__reset_outputs:
+                temp = self.outputs
+                self.outputs = []
+                return temp
+            else:
+                return self.outputs
+
 
     def input(self, inp):
         self.__inputs.append(inp)
